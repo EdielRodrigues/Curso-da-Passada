@@ -19,11 +19,29 @@ function renderPrices(){
 function openAuth(mode='login'){show('#auth');$('#loginBox').classList.toggle('hidden',mode!=='login');$('#registerBox').classList.toggle('hidden',mode!=='register')}
 function saveLocalTheme(){localStorage.setItem('cp_dark',document.body.classList.contains('dark')?'1':'0')}
 async function loadState(){
- const [settingsSnap,usersSnap,lessonsSnap]=await Promise.all([db.ref('course/settings').once('value'),db.ref('course/users').once('value'),db.ref('course/lessons').once('value')]);
- state.settings={vipPrice:150,lifePrice:299.99,...(settingsSnap.val()||{})};state.users=usersSnap.val()||{};state.lessons=lessonsSnap.val()||{};
- if(!Object.keys(state.lessons).length){const seed={dep:{id:'dep',title:'Depoimento / Apresentação',desc:'Conheça o Curso da Passada e veja como funciona.',access:'free',videoUrl:''}};await db.ref('course/lessons').set(seed);state.lessons=seed}
+ const [settingsSnap,lessonsSnap]=await Promise.all([
+   db.ref('course/settings').once('value'),
+   db.ref('course/lessons').once('value')
+ ]);
+ state.settings={vipPrice:150,lifePrice:299.99,...(settingsSnap.val()||{})};
+ state.lessons=lessonsSnap.val()||{};
+ // Somente o ADM pode criar a aula inicial. Usuário comum nunca tenta escrever no banco.
+ if(!Object.keys(state.lessons).length && isAdmin(currentUser)){
+   const seed={dep:{id:'dep',title:'Depoimento / Apresentação',desc:'Conheça o Curso da Passada e veja como funciona.',access:'free',videoUrl:''}};
+   await db.ref('course/lessons').set(seed);
+   state.lessons=seed;
+ }
+ // Somente o ADM lê /course/users inteiro. Cliente lê apenas o próprio perfil.
+ if(isAdmin(currentUser)){
+   const usersSnap=await db.ref('course/users').once('value');
+   state.users=usersSnap.val()||{};
+ } else {
+   state.users={};
+   if(currentUser?.id) state.users[currentUser.id]=currentUser;
+ }
  renderPrices();
 }
+
 async function ensureProfile(fbUser,extra={}){
  const ref=db.ref('course/users/'+fbUser.uid), snap=await ref.once('value');let u=snap.val();
  if(!u){u={id:fbUser.uid,name:extra.name||fbUser.displayName||fbUser.email.split('@')[0],email:fbUser.email.toLowerCase(),phone:extra.phone||'',plan:adminEmail(fbUser.email)?'life':'free',createdAt:new Date().toISOString(),expiresAt:null,subscriptionId:null};await ref.set(u)}
@@ -60,12 +78,24 @@ async function deleteLesson(id){if(!confirm('Excluir esta vídeo-aula?'))return;
 async function saveLesson(e){e.preventDefault();if(!isAdmin(currentUser))return toast('Acesso negado.');const id=$('#lessonId').value||uid(),lesson={id,title:$('#lessonTitle').value.trim(),desc:$('#lessonDesc').value.trim(),access:$('#lessonAccess').value,videoUrl:$('#lessonVideoUrl').value.trim(),order:Object.keys(state.lessons).length+1};if(!lesson.title)return;await db.ref('course/lessons/'+id).set(lesson);state.lessons[id]=lesson;$('#lessonForm').reset();$('#lessonId').value='';$('#lessonSaveBtn').textContent='Adicionar vídeo-aula';renderAdminLessons();renderLessons();toast('Vídeo-aula salva com sucesso.')}
 async function startPayment(plan){const price=plan==='vip'?state.settings.vipPrice:state.settings.lifePrice;if(!CFG.paymentBackendUrl)return toast('Configure a URL do Render em config.js.');try{const r=await fetch(CFG.paymentBackendUrl.replace(/\/$/,'')+'/payments/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan,userId:currentUser.id,email:currentUser.email})});const d=await r.json();if(!r.ok)throw new Error(d.message||'Falha');if(d.checkout_url)location.href=d.checkout_url;else toast(d.message||'Não foi possível iniciar o pagamento.')}catch(e){toast(e.message||'Servidor de pagamento indisponível.')}}
 async function init(){
- try{firebase.initializeApp(CFG.firebaseConfig);auth=firebase.auth();db=firebase.database();await loadState();
-  auth.onAuthStateChanged(async fb=>{if(fb){await afterLogin(fb)}else{currentUser=null;$('#logoutBtn').classList.add('hidden');show('#landing')}});
+ try{
+   firebase.initializeApp(CFG.firebaseConfig);
+   auth=firebase.auth();
+   db=firebase.database();
+   auth.onAuthStateChanged(async fb=>{
+     try{
+       if(fb){await afterLogin(fb)}
+       else{currentUser=null;state.users={};$('#logoutBtn').classList.add('hidden');show('#landing')}
+     }catch(e){
+       console.error('Firebase pós-login:',e);
+       toast(e.code==='PERMISSION_DENIED'||e.message?.includes('permission_denied')?'Firebase bloqueou o acesso ao perfil. Confira as Rules publicadas.':(e.message||'Erro ao carregar sua conta.'));
+     }
+   });
  }catch(e){console.error(e);toast('Erro ao iniciar Firebase. Verifique a configuração.')}
 }
+
 $('#loginForm').onsubmit=async e=>{e.preventDefault();try{await auth.signInWithEmailAndPassword($('#loginEmail').value.trim(),$('#loginPassword').value)}catch(err){toast(err.code==='auth/invalid-credential'?'E-mail ou senha incorretos.':err.message)}};
-$('#registerForm').onsubmit=async e=>{e.preventDefault();try{const name=$('#regName').value.trim(),email=$('#regEmail').value.trim().toLowerCase(),phone=$('#regPhone').value.trim(),p=$('#regPassword').value;const cred=await auth.createUserWithEmailAndPassword(email,p);await db.ref('course/users/'+cred.user.uid).set({id:cred.user.uid,name,email,phone,plan:adminEmail(email)?'life':'free',createdAt:new Date().toISOString(),expiresAt:null,subscriptionId:null});toast(adminEmail(email)?'Conta ADM criada.':'Acesso gratuito criado por 24 horas.')}catch(err){toast(err.code==='auth/email-already-in-use'?'Este e-mail já está cadastrado.':err.message)}};
+$('#registerForm').onsubmit=async e=>{e.preventDefault();try{const name=$('#regName').value.trim(),email=$('#regEmail').value.trim().toLowerCase(),phone=$('#regPhone').value.trim(),p=$('#regPassword').value;if(!name||!email||p.length<6)return toast('Preencha nome, e-mail e uma senha de pelo menos 6 caracteres.');const cred=await auth.createUserWithEmailAndPassword(email,p);await db.ref('course/users/'+cred.user.uid).set({id:cred.user.uid,name,email,phone,plan:adminEmail(email)?'life':'free',createdAt:new Date().toISOString(),expiresAt:null,subscriptionId:null});toast(adminEmail(email)?'Conta ADM criada.':'Acesso gratuito criado por 24 horas.')}catch(err){console.error(err);toast(err.code==='auth/email-already-in-use'?'Este e-mail já está cadastrado.':err.code==='PERMISSION_DENIED'?'Cadastro criado, mas o Firebase bloqueou a gravação do perfil. Publique as Rules corretas.':err.message)}};
 $('#savePrices').onclick=async()=>{if(!isAdmin(currentUser))return toast('Acesso negado.');const vip=Number($('#admVip').value),life=Number($('#admLife').value);if(vip<0||life<0)return toast('Informe valores válidos.');await db.ref('course/settings').update({vipPrice:vip,lifePrice:life});state.settings.vipPrice=vip;state.settings.lifePrice=life;renderPrices();toast('Preços atualizados.')};
 $('#userSearch').oninput=renderUsers;$('#lessonForm').onsubmit=saveLesson;$('#lessonCancelBtn').onclick=()=>{$('#lessonForm').reset();$('#lessonId').value='';$('#lessonSaveBtn').textContent='Adicionar vídeo-aula'};$('#backHome').onclick=()=>show('#landing');$('#logoutBtn').onclick=logout;
 $$('[data-open]').forEach(b=>b.onclick=()=>openAuth(b.dataset.open));$('#themeBtn').onclick=()=>{document.body.classList.toggle('dark');saveLocalTheme()};$$('.side').forEach(b=>b.onclick=()=>{$$('.side').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.tab').forEach(x=>x.classList.add('hidden'));$('#tab-'+b.dataset.tab).classList.remove('hidden')});
