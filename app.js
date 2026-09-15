@@ -50,6 +50,78 @@ async function ensureProfile(fbUser,extra={}){
 async function afterLogin(fbUser){currentUser=await ensureProfile(fbUser);await loadState();renderStudent();enterUI()}
 function enterUI(){$('#logoutBtn').classList.remove('hidden');show('#student')}
 function logout(){auth.signOut();currentUser=null;$('#logoutBtn').classList.add('hidden');show('#landing')}
+function firebaseAuthMessage(e){
+ const c=String(e?.code||'');
+ const m={
+   'auth/invalid-credential':'E-mail ou senha incorretos.',
+   'auth/wrong-password':'E-mail ou senha incorretos.',
+   'auth/user-not-found':'Não existe uma conta com este e-mail.',
+   'auth/email-already-in-use':'Este e-mail já está cadastrado. Use Entrar.',
+   'auth/weak-password':'A senha precisa ter pelo menos 6 caracteres.',
+   'auth/invalid-email':'Digite um e-mail válido.',
+   'auth/network-request-failed':'Não foi possível conectar ao Firebase. Verifique sua internet.',
+   'auth/too-many-requests':'Muitas tentativas. Aguarde um pouco e tente novamente.',
+   'auth/operation-not-allowed':'Login por e-mail e senha está desativado no Firebase. Ative em Authentication → Sign-in method → E-mail/Senha.'
+ };
+ return m[c]||e?.message||'Não foi possível entrar. Tente novamente.';
+}
+
+async function handleLogin(e){
+ e.preventDefault();
+ if(!auth)return toast('Firebase ainda está carregando. Tente novamente.');
+ const email=$('#loginEmail').value.trim().toLowerCase();
+ const password=$('#loginPassword').value;
+ if(!email||!password)return;
+ const btn=e.submitter||$('#loginForm button[type="submit"]');
+ if(btn){btn.disabled=true;btn.textContent='Entrando…'}
+ try{
+   await auth.signInWithEmailAndPassword(email,password);
+   toast('Login realizado com sucesso!');
+ }catch(err){
+   console.error('Login Firebase:',err);
+   toast(firebaseAuthMessage(err));
+ }finally{
+   if(btn){btn.disabled=false;btn.textContent='Entrar'}
+ }
+}
+
+async function handleRegister(e){
+ e.preventDefault();
+ if(!auth)return toast('Firebase ainda está carregando. Tente novamente.');
+ const name=$('#regName').value.trim();
+ const email=$('#regEmail').value.trim().toLowerCase();
+ const phone=$('#regPhone').value.trim();
+ const password=$('#regPassword').value;
+ if(!name||!email||!password)return toast('Preencha nome, e-mail e senha.');
+ const btn=e.submitter||$('#registerForm button[type="submit"]');
+ if(btn){btn.disabled=true;btn.textContent='Criando…'}
+ try{
+   const cred=await auth.createUserWithEmailAndPassword(email,password);
+   // Grava os dados do cadastro no Realtime Database antes do fluxo normal de login.
+   const profile={
+     id:cred.user.uid,
+     name,
+     email,
+     phone,
+     plan:'free',
+     createdAt:new Date().toISOString(),
+     expiresAt:null,
+     subscriptionId:null
+   };
+   await db.ref('course/users/'+cred.user.uid).set(profile);
+   currentUser=profile;
+   state.users[cred.user.uid]=profile;
+   await loadState();
+   renderStudent();
+   enterUI();
+   toast('Cadastro criado! Seu acesso grátis de 24 horas começou.');
+ }catch(err){
+   console.error('Cadastro Firebase:',err);
+   toast(firebaseAuthMessage(err));
+ }finally{
+   if(btn){btn.disabled=false;btn.textContent='Criar acesso gratuito'}
+ }
+}
 function renderStudent(){
  if(!currentUser)return;
  $('#welcomeName').textContent=`Olá, ${currentUser.name.split(' ')[0]}!`;$('#accessSummary').textContent=`Acesso: ${accessLabel(currentUser)} • ${isAdmin(currentUser)?'controle administrativo':activeUser(currentUser)?'acesso ativo':'acesso expirado'}`;$('#accessPill').textContent=accessLabel(currentUser);
@@ -133,4 +205,10 @@ $('#savePrices').onclick=async()=>{if(!isAdmin(currentUser))return toast('Acesso
 $('#userSearch').oninput=renderUsers;$('#lessonForm').onsubmit=saveLesson;$('#lessonCancelBtn').onclick=()=>{$('#lessonForm').reset();$('#lessonId').value='';$('#lessonSaveBtn').textContent='Adicionar vídeo-aula'};$('#backHome').onclick=()=>show('#landing');$('#logoutBtn').onclick=logout;
 $$('[data-open]').forEach(b=>b.onclick=()=>openAuth(b.dataset.open));$('#themeBtn').onclick=()=>{document.body.classList.toggle('dark');saveLocalTheme()};$$('.side').forEach(b=>b.onclick=()=>{$$('.side').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.tab').forEach(x=>x.classList.add('hidden'));$('#tab-'+b.dataset.tab).classList.remove('hidden')});
 $('#paymentClose').onclick=closePayment;$('#copyPix').onclick=async()=>{try{await navigator.clipboard.writeText($('#pixCode').value);toast('Código Pix copiado!')}catch{ $('#pixCode').select();document.execCommand('copy');toast('Código Pix copiado!')}};$('#vipPayBtn').onclick=()=>startPayment('vip');$('#lifePayBtn').onclick=()=>startPayment('life');$('#profileVipPayBtn').onclick=()=>startPayment('vip');$('#profileLifePayBtn').onclick=()=>startPayment('life');
-document.addEventListener('DOMContentLoaded',()=>{$('#year').textContent=new Date().getFullYear();if(localStorage.getItem('cp_dark')==='1')document.body.classList.add('dark');init()});
+document.addEventListener('DOMContentLoaded',()=>{
+ $('#year').textContent=new Date().getFullYear();
+ if(localStorage.getItem('cp_dark')==='1')document.body.classList.add('dark');
+ $('#loginForm').addEventListener('submit',handleLogin);
+ $('#registerForm').addEventListener('submit',handleRegister);
+ init();
+});
