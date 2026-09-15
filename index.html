@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#173b57">
+<meta name="description" content="Curso da Passada — plataforma de cursos de passadoria.">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="styles.css">
+<title>Curso da Passada</title>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">CP</span><div><strong>Curso da Passada</strong><small>Formação em Passadoria</small></div></div>
+    <div class="top-actions">
+      <button id="themeBtn" class="icon-btn" title="Alternar tema">☾</button>
+      <button id="logoutBtn" class="ghost hidden">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="landing" class="page">
+      <div class="hero">
+        <div class="hero-copy">
+          <span class="eyebrow">CURSO DA PASSADA</span>
+          <h1>Aprenda passadoria de um jeito <span>profissional.</span></h1>
+          <p>Uma plataforma organizada para você aprender, acompanhar suas aulas e evoluir passo a passo.</p>
+          <div class="hero-actions">
+            <button class="primary" data-open="register">Começar grátis por 24 horas</button>
+            <button class="secondary" data-open="plans">Ver planos</button>
+          </div>
+          <div class="trust"><span>✓ Acesso pelo celular</span><span>✓ Conteúdo por níveis</span><span>✓ Área exclusiva</span></div>
+        </div>
+        <div class="hero-card">
+          <div class="card-top"><span>Seu acesso</span><span class="status-dot"></span></div>
+          <div class="lesson-preview">
+            <div class="play">▶</div>
+            <div><b>Depoimento / Apresentação</b><small>Vídeo gratuito</small></div>
+          </div>
+          <div class="locked-row">🔒 Módulos avançados <span>VIP / Vitalício</span></div>
+          <div class="locked-row">🔒 Conteúdo completo <span>Vitalício</span></div>
+        </div>
+      </div>
+
+      <div id="plans" class="plans">
+        <div class="section-head"><div><span class="eyebrow">ESCOLHA SEU ACESSO</span><h2>Comece pelo plano ideal</h2></div></div>
+        <div class="plan-grid">
+          <article class="plan">
+            <span class="plan-tag">EXPERIMENTE</span><h3>Grátis</h3><div class="price">24h</div>
+            <p>Conheça a plataforma e veja o conteúdo de apresentação.</p>
+            <ul><li>Cadastro gratuito</li><li>1 vídeo de depoimento</li><li>Conteúdo avançado bloqueado</li></ul>
+            <button class="secondary full" data-open="register">Criar acesso</button>
+          </article>
+          <article class="plan featured">
+            <span class="plan-tag">MAIS ESCOLHIDO</span><h3>VIP</h3><div class="price" id="vipPrice">R$ 150,00<small>/mês</small></div>
+            <p>Acesso mensal aos conteúdos liberados para alunos VIP.</p>
+            <ul><li>Aulas e módulos VIP</li><li>Área do aluno</li><li>Acesso durante a assinatura</li></ul>
+            <button class="primary full" data-open="login">Entrar / Assinar</button>
+          </article>
+          <article class="plan">
+            <span class="plan-tag">PAGAMENTO ÚNICO</span><h3>Vitalício</h3><div class="price" id="lifePrice">R$ 299,99</div>
+            <p>Acesso permanente ao conteúdo completo do curso.</p>
+            <ul><li>Conteúdo completo</li><li>Todos os módulos</li><li>Acesso permanente</li></ul>
+            <button class="secondary full" data-open="login">Entrar / Comprar</button>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="auth" class="page hidden">
+      <div class="auth-card">
+        <button class="back" id="backHome">← Voltar</button>
+        <div id="loginBox">
+          <span class="eyebrow">ACESSO</span><h2>Entrar no curso</h2>
+          <p>Entre com seu e-mail e senha.</p>
+          <form id="loginForm">
+            <label>E-mail<input id="loginEmail" type="email" required autocomplete="email"></label>
+            <label>Senha<input id="loginPassword" type="password" required autocomplete="current-password"></label>
+            <button class="primary full">Entrar</button>
+          </form>
+          <p class="switch">Ainda não tem cadastro? <button type="button" data-open="register">Criar conta</button></p>
+        </div>
+        <div id="registerBox" class="hidden">
+          <span class="eyebrow">NOVO ALUNO</span><h2>Crie seu acesso</h2>
+          <p>Seu acesso gratuito começa no momento do cadastro.</p>
+          <form id="registerForm">
+            <label>Nome<input id="regName" required></label>
+            <label>E-mail<input id="regEmail" type="email" required autocomplete="email"></label>
+            <label>Telefone<input id="regPhone" inputmode="tel"></label>
+            <label>Senha<input id="regPassword" type="password" minlength="6" required autocomplete="new-password"></label>
+            <button class="primary full">Criar acesso gratuito</button>
+          </form>
+          <p class="switch">Já tenho cadastro. <button type="button" data-open="login">Entrar</button></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="student" class="page hidden">
+      <div class="dashboard-head">
+        <div><span class="eyebrow">ÁREA DO ALUNO</span><h2 id="welcomeName">Olá!</h2><p id="accessSummary"></p></div>
+        <div class="access-pill" id="accessPill"></div>
+      </div>
+      <div class="notice" id="expiryNotice"></div>
+      <div class="course-layout">
+        <aside class="sidebar">
+          <button class="side active" data-tab="course">🎓 Curso</button>
+          <button class="side" data-tab="profile">👤 Meu perfil</button>
+          <button class="side" data-tab="plansStudent">⭐ Planos</button>
+          <button class="side hidden" id="adminSide" data-tab="admin">🛠️ Painel ADM</button>
+        </aside>
+        <div class="content">
+          <div id="tab-course" class="tab">
+            <div class="section-head"><div><span class="eyebrow">AULAS</span><h3>Seu conteúdo</h3></div><span id="lessonCount" class="muted"></span></div>
+            <div id="lessons" class="lesson-grid"></div>
+          </div>
+          <div id="tab-profile" class="tab hidden">
+            <div class="panel"><h3>Meu perfil</h3><div id="profileData" class="data-grid"></div></div>
+            <div class="panel profile-plans">
+              <div class="section-head"><div><span class="eyebrow">PLANOS</span><h3>Planos e pagamentos</h3></div><span class="muted">O ADM também pode contratar um plano</span></div>
+              <div class="plan-grid compact">
+                <article class="plan"><span class="eyebrow">GRÁTIS</span><h3>24 horas</h3><div class="price">R$ 0</div><p>Primeiro vídeo de apresentação.</p><button class="secondary full" disabled>Plano gratuito</button></article>
+                <article class="plan featured"><span class="eyebrow">VIP</span><h3>Mensal</h3><div class="price" id="profileVipPrice"></div><p>Acesso mensal ao conteúdo VIP.</p><button class="primary full" id="profileVipPayBtn">Pagar VIP</button></article>
+                <article class="plan"><span class="eyebrow">VITALÍCIO</span><h3>Permanente</h3><div class="price" id="profileLifePrice"></div><p>Pagamento único e acesso permanente.</p><button class="primary full" id="profileLifePayBtn">Pagar vitalício</button></article>
+              </div>
+              <div class="payment-note">Pix e cartão serão oferecidos pelo servidor de pagamento configurado. O preço exibido sempre acompanha o valor definido pelo ADM.</div>
+            </div>
+            <div id="profileAdminShortcut" class="panel hidden"><button class="primary full" id="profileAdminBtn">🛠️ Abrir painel ADM</button></div>
+          </div>
+          <div id="tab-plansStudent" class="tab hidden">
+            <div class="section-head"><div><span class="eyebrow">UPGRADE</span><h3>Escolha seu acesso</h3></div></div>
+            <div class="plan-grid compact">
+              <article class="plan featured"><h3>VIP</h3><div class="price" id="vipPrice2"></div><p>Acesso mensal.</p><button class="primary full" id="vipPayBtn">Pagamento com cartão</button></article>
+              <article class="plan"><h3>Vitalício</h3><div class="price" id="lifePrice2"></div><p>Pagamento único.</p><button class="secondary full" id="lifePayBtn">Pagamento com cartão</button></article>
+            </div>
+            <div class="payment-note">Pix ficará disponível nesta mesma área quando o servidor de pagamento for conectado. A estrutura já está preparada.</div>
+          </div>
+          <div id="tab-admin" class="tab hidden">
+            <div class="section-head"><div><span class="eyebrow">ADMINISTRAÇÃO</span><h3>Painel do Curso</h3></div><span class="admin-badge">ADM</span></div>
+            <div class="admin-grid">
+              <div class="panel"><h4>Preços dos planos</h4>
+                <label>VIP mensal (R$)<input id="admVip" type="number" min="0" step="0.01"></label>
+                <label>Vitalício (R$)<input id="admLife" type="number" min="0" step="0.01"></label>
+                <button class="primary full" id="savePrices">Salvar preços</button>
+              </div>
+              <div class="panel"><h4>Resumo</h4><div id="adminStats" class="stats"></div></div>
+            </div>
+            <div class="panel"><div class="panel-head"><h4>Usuários cadastrados</h4><input id="userSearch" placeholder="Pesquisar nome ou e-mail"></div><div class="table-wrap"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Plano</th><th>Status</th><th>Cadastro</th></tr></thead><tbody id="usersTable"></tbody></table></div></div>
+            <div class="panel"><h4>🎥 Vídeo-aulas</h4>
+              <p class="muted">Cadastre o link do vídeo (YouTube não listado, Vimeo ou outro servidor). O acesso é controlado pelo plano.</p>
+              <form id="lessonForm">
+                <input type="hidden" id="lessonId">
+                <label>Título<input id="lessonTitle" required placeholder="Ex.: Aula 1 — Preparação"></label>
+                <label>Descrição<input id="lessonDesc" placeholder="Resumo da aula"></label>
+                <label>Acesso<select id="lessonAccess"><option value="free">Grátis — primeiro vídeo</option><option value="vip">VIP</option><option value="life">Vitalício</option></select></label>
+                <label>URL do vídeo<input id="lessonVideoUrl" type="url" placeholder="https://..."></label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" type="submit" id="lessonSaveBtn">Adicionar vídeo-aula</button><button class="secondary" type="button" id="lessonCancelBtn">Limpar</button></div>
+              </form>
+              <div id="adminLessons" style="margin-top:16px"></div>
+            </div>
+            <div class="panel"><h4>Configuração para produção</h4><p class="muted">O Firebase já está configurado neste pacote. A chave secreta do Mercado Pago fica somente no Render.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer>© <span id="year"></span> Curso da Passada • Estrutura inicial</footer>
+</div>
+<div id="toast" class="toast"></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
