@@ -76,28 +76,44 @@ function renderAdminLessons(){const box=$('#adminLessons');if(!box)return;const 
 function editLesson(id){const l=state.lessons[id];if(!l)return;$('#lessonId').value=id;$('#lessonTitle').value=l.title;$('#lessonDesc').value=l.desc||'';$('#lessonAccess').value=l.access;$('#lessonVideoUrl').value=l.videoUrl||'';$('#lessonSaveBtn').textContent='Salvar alteração';openAdminTab()}
 async function deleteLesson(id){if(!confirm('Excluir esta vídeo-aula?'))return;await db.ref('course/lessons/'+id).remove();delete state.lessons[id];renderAdminLessons();renderLessons();toast('Aula excluída.')}
 async function saveLesson(e){e.preventDefault();if(!isAdmin(currentUser))return toast('Acesso negado.');const id=$('#lessonId').value||uid(),lesson={id,title:$('#lessonTitle').value.trim(),desc:$('#lessonDesc').value.trim(),access:$('#lessonAccess').value,videoUrl:$('#lessonVideoUrl').value.trim(),order:Object.keys(state.lessons).length+1};if(!lesson.title)return;await db.ref('course/lessons/'+id).set(lesson);state.lessons[id]=lesson;$('#lessonForm').reset();$('#lessonId').value='';$('#lessonSaveBtn').textContent='Adicionar vídeo-aula';renderAdminLessons();renderLessons();toast('Vídeo-aula salva com sucesso.')}
-async function startPayment(plan){const price=plan==='vip'?state.settings.vipPrice:state.settings.lifePrice;if(!CFG.paymentBackendUrl)return toast('Configure a URL do Render em config.js.');try{const backend=String(CFG.paymentBackendUrl||'').replace(/\/$/,'');const r=await fetch(backend+'/payments/create',{method:'POST',mode:'cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan,userId:currentUser.id,email:currentUser.email})});const text=await r.text();let d={};try{d=JSON.parse(text)}catch{}if(!r.ok)throw new Error(d.message||('Erro HTTP '+r.status));if(d.checkout_url){const url=String(d.checkout_url).trim();if(!/^https:\/\/([a-z0-9-]+\.)*mercadopago\.com(\.br)?\//i.test(url)){throw new Error('O Mercado Pago retornou um link de pagamento inválido.');}window.location.assign(url);}else toast(d.message||'Não foi possível iniciar o pagamento.')}catch(e){toast((e&&e.message)||'Servidor de pagamento indisponível. Verifique a conexão com o Render.')}}
-async function init(){
+let paymentBrickController=null,paymentPollTimer=null;
+async function fetchPaymentConfig(){const backend=String(CFG.paymentBackendUrl||'').replace(/\/$/,'');const r=await fetch(backend+'/payments/config',{mode:'cors'});const d=await r.json();if(!r.ok||!d.publicKey)throw new Error('A Public Key do Mercado Pago ainda não foi configurada no Render.');return {backend,publicKey:d.publicKey};}
+function closePayment(){if(paymentPollTimer){clearInterval(paymentPollTimer);paymentPollTimer=null}try{paymentBrickController?.unmount?.()}catch{}paymentBrickController=null;$('#paymentModal').classList.add('hidden');$('#paymentBrickContainer').innerHTML='';$('#paymentLoading').classList.remove('hidden');$('#pixResult').classList.add('hidden');$('#paymentResult').classList.add('hidden')}
+function showPayment(){ $('#paymentModal').classList.remove('hidden'); }
+async function pollPayment(backend,id,plan){let tries=0;paymentPollTimer=setInterval(async()=>{tries++;try{const r=await fetch(backend+'/payments/status/'+encodeURIComponent(id));const d=await r.json();if(['approved','rejected','cancelled','refunded'].includes(d.status)||tries>60){clearInterval(paymentPollTimer);paymentPollTimer=null;if(d.status==='approved'){await refreshOwnProfile();$('#pixStatus').textContent='Pagamento aprovado! Seu acesso foi atualizado.';$('#paymentResultTitle').textContent='Pagamento aprovado ✅';$('#paymentResultText').textContent=plan==='life'?'Seu acesso Vitalício foi liberado.':'Seu acesso VIP foi liberado.';$('#paymentResult').classList.remove('hidden');renderStudent();}else if(tries>60){$('#pixStatus').textContent='Ainda aguardando confirmação. Você pode fechar esta tela e voltar depois.';}else{$('#pixStatus').textContent='Pagamento não aprovado: '+d.status;}}}catch(e){if(tries>60){clearInterval(paymentPollTimer);paymentPollTimer=null}}},3000)}
+async function pollSubscription(backend,id){let tries=0;paymentPollTimer=setInterval(async()=>{tries++;try{const r=await fetch(backend+'/subscriptions/status/'+encodeURIComponent(id));const d=await r.json();if(['authorized','cancelled','canceled','paused'].includes(d.status)||tries>40){clearInterval(paymentPollTimer);paymentPollTimer=null;if(d.status==='authorized'){await refreshOwnProfile();$('#paymentResultTitle').textContent='VIP ativado ✅';$('#paymentResultText').textContent='Sua assinatura mensal foi autorizada. O acesso VIP está ativo.';$('#paymentResult').classList.remove('hidden');renderStudent();}else if(tries>40){$('#paymentResultTitle').textContent='Aguardando confirmação';$('#paymentResultText').textContent='A assinatura ainda está sendo processada.';$('#paymentResult').classList.remove('hidden')}else{$('#paymentResultTitle').textContent='Assinatura não ativa';$('#paymentResultText').textContent='Status: '+d.status;$('#paymentResult').classList.remove('hidden')}}}catch(e){if(tries>40){clearInterval(paymentPollTimer);paymentPollTimer=null}}},3000)}
+async function refreshOwnProfile(){if(!currentUser?.id)return;const snap=await db.ref('course/users/'+currentUser.id).once('value');if(snap.exists())currentUser=snap.val();state.users[currentUser.id]=currentUser;}
+async function startPayment(plan){
+ if(!currentUser)return toast('Entre na sua conta antes de pagar.');
+ if(!CFG.paymentBackendUrl)return toast('Configure a URL do Render em config.js.');
+ const price=plan==='vip'?state.settings.vipPrice:state.settings.lifePrice;
+ showPayment();$('#paymentTitle').textContent=plan==='vip'?'Plano VIP — '+money(price)+'/mês':'Acesso Vitalício — '+money(price);$('#paymentSubtitle').textContent=plan==='vip'?'Escolha Pix ou cartão. No cartão, a cobrança será recorrente mensalmente. No Pix, a renovação será manual a cada 30 dias.':'Escolha Pix ou cartão e pague dentro do Curso da Passada.';
  try{
-   firebase.initializeApp(CFG.firebaseConfig);
-   auth=firebase.auth();
-   db=firebase.database();
-   auth.onAuthStateChanged(async fb=>{
-     try{
-       if(fb){await afterLogin(fb)}
-       else{currentUser=null;state.users={};$('#logoutBtn').classList.add('hidden');show('#landing')}
-     }catch(e){
-       console.error('Firebase pós-login:',e);
-       toast(e.code==='PERMISSION_DENIED'||e.message?.includes('permission_denied')?'Firebase bloqueou o acesso ao perfil. Confira as Rules publicadas.':(e.message||'Erro ao carregar sua conta.'));
-     }
-   });
- }catch(e){console.error(e);toast('Erro ao iniciar Firebase. Verifique a configuração.')}
+   const {backend,publicKey}=await fetchPaymentConfig();
+   if(!window.MercadoPago)throw new Error('SDK do Mercado Pago não carregou.');
+   const prep=await fetch(backend+'/payments/create',{method:'POST',mode:'cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan,userId:currentUser.id,email:currentUser.email})});
+   const prepText=await prep.text();let prepData={};try{prepData=JSON.parse(prepText)}catch{}if(!prep.ok)throw new Error(prepData.message||('Erro HTTP '+prep.status));
+   $('#paymentLoading').classList.add('hidden');
+   const mp=new MercadoPago(publicKey,{locale:'pt-BR'});const bricks=mp.bricks();
+   const settings={initialization:{amount:Number(price),payer:{email:currentUser.email}},customization:{paymentMethods:{creditCard:'all',bankTransfer:'all'}},callbacks:{onReady:()=>{},onSubmit:async(formData)=>{
+      const r=await fetch(backend+'/payments/process',{method:'POST',mode:'cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan,userId:currentUser.id,email:currentUser.email,payment:formData})});
+      const txt=await r.text();let d={};try{d=JSON.parse(txt)}catch{}if(!r.ok)throw new Error(d.message||('Erro HTTP '+r.status));
+      if(d.type==='pix'){
+        $('#paymentBrickContainer').classList.add('hidden');$('#pixResult').classList.remove('hidden');
+        if(d.qr_code_base64)$('#pixQr').src='data:image/png;base64,'+d.qr_code_base64;$('#pixCode').value=d.qr_code||'';$('#pixStatus').textContent='Aguardando pagamento…';
+        pollPayment(backend,d.id,plan);
+      }else if(d.type==='subscription'){
+        $('#paymentBrickContainer').classList.add('hidden');$('#paymentResultTitle').textContent='Assinatura criada';$('#paymentResultText').textContent='Estamos confirmando a autorização do cartão…';$('#paymentResult').classList.remove('hidden');pollSubscription(backend,d.id);
+      }else{
+        $('#paymentBrickContainer').classList.add('hidden');$('#paymentResultTitle').textContent=d.status==='approved'?'Pagamento aprovado ✅':'Pagamento enviado';$('#paymentResultText').textContent=d.message||'Aguardando confirmação.';$('#paymentResult').classList.remove('hidden');pollPayment(backend,d.id,plan);
+      }
+   },onError:(e)=>{console.error('Payment Brick',e);toast('Não foi possível carregar o pagamento. Tente novamente.')}}};
+   paymentBrickController=await bricks.create('payment','paymentBrickContainer',settings);
+ }catch(e){console.error(e);$('#paymentLoading').classList.add('hidden');$('#paymentResultTitle').textContent='Não foi possível abrir o pagamento';$('#paymentResultText').textContent=e.message||'Erro ao iniciar pagamento.';$('#paymentResult').classList.remove('hidden');}
 }
 
-$('#loginForm').onsubmit=async e=>{e.preventDefault();try{await auth.signInWithEmailAndPassword($('#loginEmail').value.trim(),$('#loginPassword').value)}catch(err){toast(err.code==='auth/invalid-credential'?'E-mail ou senha incorretos.':err.message)}};
-$('#registerForm').onsubmit=async e=>{e.preventDefault();try{const name=$('#regName').value.trim(),email=$('#regEmail').value.trim().toLowerCase(),phone=$('#regPhone').value.trim(),p=$('#regPassword').value;if(!name||!email||p.length<6)return toast('Preencha nome, e-mail e uma senha de pelo menos 6 caracteres.');const cred=await auth.createUserWithEmailAndPassword(email,p);await db.ref('course/users/'+cred.user.uid).set({id:cred.user.uid,name,email,phone,plan:adminEmail(email)?'life':'free',createdAt:new Date().toISOString(),expiresAt:null,subscriptionId:null});toast(adminEmail(email)?'Conta ADM criada.':'Acesso gratuito criado por 24 horas.')}catch(err){console.error(err);toast(err.code==='auth/email-already-in-use'?'Este e-mail já está cadastrado.':err.code==='PERMISSION_DENIED'?'Cadastro criado, mas o Firebase bloqueou a gravação do perfil. Publique as Rules corretas.':err.message)}};
 $('#savePrices').onclick=async()=>{if(!isAdmin(currentUser))return toast('Acesso negado.');const vip=Number($('#admVip').value),life=Number($('#admLife').value);if(vip<0||life<0)return toast('Informe valores válidos.');await db.ref('course/settings').update({vipPrice:vip,lifePrice:life});state.settings.vipPrice=vip;state.settings.lifePrice=life;renderPrices();toast('Preços atualizados.')};
 $('#userSearch').oninput=renderUsers;$('#lessonForm').onsubmit=saveLesson;$('#lessonCancelBtn').onclick=()=>{$('#lessonForm').reset();$('#lessonId').value='';$('#lessonSaveBtn').textContent='Adicionar vídeo-aula'};$('#backHome').onclick=()=>show('#landing');$('#logoutBtn').onclick=logout;
 $$('[data-open]').forEach(b=>b.onclick=()=>openAuth(b.dataset.open));$('#themeBtn').onclick=()=>{document.body.classList.toggle('dark');saveLocalTheme()};$$('.side').forEach(b=>b.onclick=()=>{$$('.side').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.tab').forEach(x=>x.classList.add('hidden'));$('#tab-'+b.dataset.tab).classList.remove('hidden')});
-$('#vipPayBtn').onclick=()=>startPayment('vip');$('#lifePayBtn').onclick=()=>startPayment('life');$('#profileVipPayBtn').onclick=()=>startPayment('vip');$('#profileLifePayBtn').onclick=()=>startPayment('life');
+$('#paymentClose').onclick=closePayment;$('#copyPix').onclick=async()=>{try{await navigator.clipboard.writeText($('#pixCode').value);toast('Código Pix copiado!')}catch{ $('#pixCode').select();document.execCommand('copy');toast('Código Pix copiado!')}};$('#vipPayBtn').onclick=()=>startPayment('vip');$('#lifePayBtn').onclick=()=>startPayment('life');$('#profileVipPayBtn').onclick=()=>startPayment('vip');$('#profileLifePayBtn').onclick=()=>startPayment('life');
 document.addEventListener('DOMContentLoaded',()=>{$('#year').textContent=new Date().getFullYear();if(localStorage.getItem('cp_dark')==='1')document.body.classList.add('dark');init()});

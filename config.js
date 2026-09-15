@@ -10,5 +10,6 @@ window.CURSO_CONFIG = {
     appId: "1:121260928467:web:de385da60551646f671326"
   },
   paymentBackendUrl: "https://backend-curso.onrender.com",
+  // A Public Key é buscada com segurança no endpoint /payments/config do backend.
   payment: { methods: ["credit_card", "pix"], currency: "BRL" }
 };

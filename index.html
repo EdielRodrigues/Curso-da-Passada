@@ -167,9 +167,25 @@
   <footer>© <span id="year"></span> Curso da Passada • Estrutura inicial</footer>
 </div>
 <div id="toast" class="toast"></div>
+<div id="paymentModal" class="pay-modal hidden">
+  <div class="pay-sheet">
+    <div class="pay-head"><div><span class="eyebrow">PAGAMENTO SEGURO</span><h3 id="paymentTitle">Pagamento</h3><p id="paymentSubtitle" class="muted"></p></div><button id="paymentClose" class="icon-btn" type="button">✕</button></div>
+    <div id="paymentLoading" class="panel"><p>Preparando pagamento seguro…</p></div>
+    <div id="paymentBrickContainer"></div>
+    <div id="pixResult" class="hidden panel pix-result">
+      <h4>Pix gerado</h4><p class="muted">Escaneie o QR Code ou copie o código abaixo.</p>
+      <img id="pixQr" alt="QR Code Pix" class="pix-qr">
+      <textarea id="pixCode" readonly rows="4"></textarea>
+      <button id="copyPix" class="primary full" type="button">Copiar código Pix</button>
+      <p id="pixStatus" class="muted">Aguardando pagamento…</p>
+    </div>
+    <div id="paymentResult" class="hidden panel"><h4 id="paymentResultTitle"></h4><p id="paymentResultText" class="muted"></p></div>
+  </div>
+</div>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script src="https://sdk.mercadopago.com/js/v2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>
