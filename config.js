@@ -9,6 +9,6 @@ window.CURSO_CONFIG = {
     messagingSenderId: "121260928467",
     appId: "1:121260928467:web:de385da60551646f671326"
   },
-  paymentBackendUrl: "",
+  paymentBackendUrl: "https://backend-curso.onrender.com",
   payment: { methods: ["credit_card", "pix"], currency: "BRL" }
 };
