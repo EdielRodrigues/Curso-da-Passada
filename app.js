@@ -184,8 +184,12 @@ async function startPayment(plan){
    const prepText=await prep.text();let prepData={};try{prepData=JSON.parse(prepText)}catch{}if(!prep.ok)throw new Error(prepData.message||('Erro HTTP '+prep.status));
    $('#paymentLoading').classList.add('hidden');
    const mp=new MercadoPago(publicKey,{locale:'pt-BR'});const bricks=mp.bricks();
-   const settings={initialization:{amount:Number(price),payer:{email:currentUser.email}},customization:{paymentMethods:{creditCard:'all',bankTransfer:'all'}},callbacks:{onReady:()=>{},onSubmit:async(formData)=>{
-      const r=await fetch(backend+'/payments/process',{method:'POST',mode:'cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan,userId:currentUser.id,email:currentUser.email,payment:formData})});
+   const settings={initialization:{amount:Number(price),payer:{email:currentUser.email}},customization:{paymentMethods:{creditCard:'all',bankTransfer:'all'}},callbacks:{onReady:()=>{},onSubmit:async({formData,selectedPaymentMethod})=>{
+      // O Payment Brick entrega { formData, selectedPaymentMethod }.
+      // Mantemos fallback para versões que retornem o objeto diretamente.
+      const payment= formData?.formData || formData || {};
+      if(!payment.payment_method_id && selectedPaymentMethod?.id) payment.payment_method_id=selectedPaymentMethod.id;
+      const r=await fetch(backend+'/payments/process',{method:'POST',mode:'cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan,userId:currentUser.id,email:currentUser.email,payment})});
       const txt=await r.text();let d={};try{d=JSON.parse(txt)}catch{}if(!r.ok)throw new Error(d.message||('Erro HTTP '+r.status));
       if(d.type==='pix'){
         $('#paymentBrickContainer').classList.add('hidden');$('#pixResult').classList.remove('hidden');
