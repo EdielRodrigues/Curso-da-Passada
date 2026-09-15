@@ -83,6 +83,23 @@ function showPayment(){ $('#paymentModal').classList.remove('hidden'); }
 async function pollPayment(backend,id,plan){let tries=0;paymentPollTimer=setInterval(async()=>{tries++;try{const r=await fetch(backend+'/payments/status/'+encodeURIComponent(id));const d=await r.json();if(['approved','rejected','cancelled','refunded'].includes(d.status)||tries>60){clearInterval(paymentPollTimer);paymentPollTimer=null;if(d.status==='approved'){await refreshOwnProfile();$('#pixStatus').textContent='Pagamento aprovado! Seu acesso foi atualizado.';$('#paymentResultTitle').textContent='Pagamento aprovado ✅';$('#paymentResultText').textContent=plan==='life'?'Seu acesso Vitalício foi liberado.':'Seu acesso VIP foi liberado.';$('#paymentResult').classList.remove('hidden');renderStudent();}else if(tries>60){$('#pixStatus').textContent='Ainda aguardando confirmação. Você pode fechar esta tela e voltar depois.';}else{$('#pixStatus').textContent='Pagamento não aprovado: '+d.status;}}}catch(e){if(tries>60){clearInterval(paymentPollTimer);paymentPollTimer=null}}},3000)}
 async function pollSubscription(backend,id){let tries=0;paymentPollTimer=setInterval(async()=>{tries++;try{const r=await fetch(backend+'/subscriptions/status/'+encodeURIComponent(id));const d=await r.json();if(['authorized','cancelled','canceled','paused'].includes(d.status)||tries>40){clearInterval(paymentPollTimer);paymentPollTimer=null;if(d.status==='authorized'){await refreshOwnProfile();$('#paymentResultTitle').textContent='VIP ativado ✅';$('#paymentResultText').textContent='Sua assinatura mensal foi autorizada. O acesso VIP está ativo.';$('#paymentResult').classList.remove('hidden');renderStudent();}else if(tries>40){$('#paymentResultTitle').textContent='Aguardando confirmação';$('#paymentResultText').textContent='A assinatura ainda está sendo processada.';$('#paymentResult').classList.remove('hidden')}else{$('#paymentResultTitle').textContent='Assinatura não ativa';$('#paymentResultText').textContent='Status: '+d.status;$('#paymentResult').classList.remove('hidden')}}}catch(e){if(tries>40){clearInterval(paymentPollTimer);paymentPollTimer=null}}},3000)}
 async function refreshOwnProfile(){if(!currentUser?.id)return;const snap=await db.ref('course/users/'+currentUser.id).once('value');if(snap.exists())currentUser=snap.val();state.users[currentUser.id]=currentUser;}
+async function init(){
+ try{
+   firebase.initializeApp(CFG.firebaseConfig);
+   auth=firebase.auth();
+   db=firebase.database();
+   auth.onAuthStateChanged(async fb=>{
+     try{
+       if(fb){await afterLogin(fb)}
+       else{currentUser=null;state.users={};$('#logoutBtn').classList.add('hidden');show('#landing')}
+     }catch(e){
+       console.error('Firebase pós-login:',e);
+       toast(e.code==='PERMISSION_DENIED'||e.message?.includes('permission_denied')?'Firebase bloqueou o acesso ao perfil. Confira as Rules publicadas.':(e.message||'Erro ao carregar sua conta.'));
+     }
+   });
+ }catch(e){console.error(e);toast('Erro ao iniciar Firebase. Verifique a configuração.')}
+}
+
 async function startPayment(plan){
  if(!currentUser)return toast('Entre na sua conta antes de pagar.');
  if(!CFG.paymentBackendUrl)return toast('Configure a URL do Render em config.js.');
