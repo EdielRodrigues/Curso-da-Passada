@@ -184,24 +184,32 @@ async function startPayment(plan){
    const prepText=await prep.text();let prepData={};try{prepData=JSON.parse(prepText)}catch{}if(!prep.ok)throw new Error(prepData.message||('Erro HTTP '+prep.status));
    $('#paymentLoading').classList.add('hidden');
    const mp=new MercadoPago(publicKey,{locale:'pt-BR'});const bricks=mp.bricks();
-   const settings={initialization:{amount:Number(price),payer:{email:currentUser.email}},customization:{paymentMethods:{creditCard:'all',bankTransfer:'all'}},callbacks:{onReady:()=>{},onSubmit:async(payload)=>{
-      // O Payment Brick atual entrega { selectedPaymentMethod, formData }.
-      // Mantemos compatibilidade com versões que entregam formData diretamente.
-      const formData=payload?.formData||payload;
-      const selectedPaymentMethod=payload?.selectedPaymentMethod||formData?.payment_method_id||'';
-      console.log('Mercado Pago submit:',selectedPaymentMethod,formData);
-      const r=await fetch(backend+'/payments/process',{method:'POST',mode:'cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan,userId:currentUser.id,email:currentUser.email,payment:formData,selectedPaymentMethod})});
-      const txt=await r.text();let d={};try{d=JSON.parse(txt)}catch{}if(!r.ok)throw new Error(d.message||('Erro HTTP '+r.status));
-      if(d.type==='pix'){
-        $('#paymentBrickContainer').classList.add('hidden');$('#pixResult').classList.remove('hidden');
-        if(d.qr_code_base64)$('#pixQr').src='data:image/png;base64,'+d.qr_code_base64;$('#pixCode').value=d.qr_code||'';$('#pixStatus').textContent='Aguardando pagamento…';
-        pollPayment(backend,d.id,plan);
-      }else if(d.type==='subscription'){
-        $('#paymentBrickContainer').classList.add('hidden');$('#paymentResultTitle').textContent='Assinatura criada';$('#paymentResultText').textContent='Estamos confirmando a autorização do cartão…';$('#paymentResult').classList.remove('hidden');pollSubscription(backend,d.id);
-      }else{
-        $('#paymentBrickContainer').classList.add('hidden');$('#paymentResultTitle').textContent=d.status==='approved'?'Pagamento aprovado ✅':'Pagamento enviado';$('#paymentResultText').textContent=d.message||'Aguardando confirmação.';$('#paymentResult').classList.remove('hidden');pollPayment(backend,d.id,plan);
+   const settings={initialization:{amount:Number(price),payer:{email:currentUser.email}},customization:{paymentMethods:{creditCard:'all',bankTransfer:'all'}},callbacks:{onReady:()=>{},onSubmit:async({selectedPaymentMethod,formData},additionalData)=>{
+      console.log('Mercado Pago submit:',selectedPaymentMethod,formData,additionalData);
+      if(!formData) throw new Error('O Mercado Pago não retornou os dados do cartão. Feche esta tela, abra novamente e tente de novo.');
+      try{
+        const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),30000);
+        const r=await fetch(backend+'/payments/process',{method:'POST',mode:'cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan,userId:currentUser.id,email:currentUser.email,payment:formData,selectedPaymentMethod,reference:prepData.reference}),signal:controller.signal});
+        clearTimeout(timer);
+        const txt=await r.text();let d={};try{d=JSON.parse(txt)}catch{}
+        if(!r.ok){const extra=d.details?.message||d.details?.cause?.[0]?.description||d.details?.cause?.[0]?.code||d.details?.error||d.detail||'';throw new Error((d.message||('Erro HTTP '+r.status))+(extra?' — '+extra:''));}
+        if(d.type==='pix'){
+          $('#paymentBrickContainer').classList.add('hidden');$('#pixResult').classList.remove('hidden');
+          if(d.qr_code_base64)$('#pixQr').src='data:image/png;base64,'+d.qr_code_base64;$('#pixCode').value=d.qr_code||'';$('#pixStatus').textContent='Aguardando pagamento…';
+          pollPayment(backend,d.id,plan);
+        }else if(d.type==='subscription'){
+          $('#paymentBrickContainer').classList.add('hidden');$('#paymentResultTitle').textContent='Cartão enviado';$('#paymentResultText').textContent='Estamos confirmando a autorização do cartão…';$('#paymentResult').classList.remove('hidden');pollSubscription(backend,d.id);
+        }else{
+          $('#paymentBrickContainer').classList.add('hidden');$('#paymentResultTitle').textContent=d.status==='approved'?'Pagamento aprovado ✅':'Pagamento enviado';$('#paymentResultText').textContent=(d.message||'Aguardando confirmação.')+(d.status_detail?'\nDetalhe: '+d.status_detail:'');$('#paymentResult').classList.remove('hidden');pollPayment(backend,d.id,plan);
+        }
+      }catch(e){
+        console.error('Mercado Pago process:',e);
+        $('#paymentResultTitle').textContent='Pagamento não processado';
+        $('#paymentResultText').textContent=e.name==='AbortError'?'O servidor demorou para responder. Tente novamente.':(e.message||'Erro ao processar o cartão.');
+        $('#paymentResult').classList.remove('hidden');
+        throw e;
       }
-   },onError:(e)=>{console.error('Payment Brick',e);toast('Não foi possível carregar o pagamento. Tente novamente.')}}};
+   },onError:(e)=>{console.error('Payment Brick',e);$('#paymentResultTitle').textContent='Erro no formulário de pagamento';$('#paymentResultText').textContent=e?.message||'O Mercado Pago não conseguiu concluir o formulário.';$('#paymentResult').classList.remove('hidden');}}};
    paymentBrickController=await bricks.create('payment','paymentBrickContainer',settings);
  }catch(e){console.error(e);$('#paymentLoading').classList.add('hidden');$('#paymentResultTitle').textContent='Não foi possível abrir o pagamento';$('#paymentResultText').textContent=e.message||'Erro ao iniciar pagamento.';$('#paymentResult').classList.remove('hidden');}
 }
